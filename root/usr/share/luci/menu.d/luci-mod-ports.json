@@ -1,0 +1,12 @@
+{
+		"admin/status/ports": {
+				"title": "Network Ports",
+				"action": {
+						"type": "view",
+						"path": "network-ports"
+				},
+				"depends": {
+						"acl": [ "luci-mod-ports" ]
+				}
+		}
+}
