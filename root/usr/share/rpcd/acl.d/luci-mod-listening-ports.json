@@ -1,5 +1,5 @@
 {
-	"luci-mod-ports": {
+	"luci-mod-listening-ports": {
 		"description": "Grant permissions for the Network Ports LuCI app",
 		"read": {
 			"file": {
