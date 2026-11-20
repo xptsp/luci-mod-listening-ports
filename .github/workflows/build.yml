@@ -15,22 +15,22 @@ on:
   workflow_dispatch:
     inputs:
       openwrt_version:
-        description: 'both = ipk(24.10.8) + apk(25.12.6); или одна версия: 23.05.6, 24.10.8, 25.12.6, snapshot'
+        description: 'both = ipk(24.10.8) + apk(25.12.6); or one version: 23.05.6, 24.10.8, 25.12.6, snapshot'
         required: true
         default: 'both'
         type: string
       pkg_version:
-        description: 'Версия пакета (цифры/точки). Пусто = из тега или Makefile'
+        description: 'Package version (numbers/dots). Empty = from tag or Makefile'
         required: false
         default: ''
         type: string
       pkg_release:
-        description: 'PKG_RELEASE — ревизия упаковки. Пусто = из тега или Makefile'
+        description: 'PKG_RELEASE — packaging revision. Empty = from tag or Makefile'
         required: false
         default: ''
         type: string
       skip_release:
-        description: 'Не публиковать релиз, даже если запуск с тега'
+        description: 'Do not publish the release, even if launched from the tag'
         required: false
         default: false
         type: boolean
@@ -59,26 +59,26 @@ jobs:
           getvar() { grep -E "^$1[[:space:]]*[:?]?=" "$MK" | head -n1 | sed 's/.*=[[:space:]]*//'; }
 
           VER="$IN_VER"; REL="$IN_REL"
-          # Тег вида v1.0-4 или 1.0-4 задаёт версию и ревизию
+          # A tag like v1.0-4 or 1.0-4 specifies the version and revision
           case "$REF" in
             refs/tags/*)
               T="${REF_NAME#v}"
               case "$T" in
                 *-*) [ -n "$VER" ] || VER="${T%-*}"
                      [ -n "$REL" ] || REL="${T##*-}" ;;
-                *) echo "::error::Тег должен быть вида v1.0-4 (версия-ревизия)"; exit 1 ;;
+                *) echo "::error::The tag should be like v1.0-4 (version-revision)"; exit 1 ;;
               esac ;;
           esac
           VER="${VER:-$(getvar PKG_VERSION)}"
           REL="${REL:-$(getvar PKG_RELEASE)}"
-          case "$VER" in ''|*[!0-9.]*) echo "::error::Версия должна быть числовой: '$VER'"; exit 1 ;; esac
-          case "$REL" in ''|*[!0-9]*)  echo "::error::PKG_RELEASE должен быть числом: '$REL'"; exit 1 ;; esac
+          case "$VER" in ''|*[!0-9.]*) echo "::error::The version must be numeric: '$VER'"; exit 1 ;; esac
+          case "$REL" in ''|*[!0-9]*)  echo "::error::PKG_RELEASE must be a number: '$REL'"; exit 1 ;; esac
 
           {
             echo "pkg_version=$VER"
             echo "pkg_release=$REL"
           } >> "$GITHUB_OUTPUT"
-          echo "Пакет: ${VER}-r${REL}"
+          echo "Application: ${VER}-r${REL}"
 
       - name: Generate matrix
         id: gen
@@ -90,18 +90,17 @@ jobs:
             both) VERSIONS="24.10.8 25.12.6" ;;
             *)    VERSIONS="$OWRT_INPUT" ;;
           esac
-          # Только версии: пакет PKGARCH=all, архитектуры не нужны
           JSON='{"include":['
           first=1
           for v in $VERSIONS; do
-            case "$v" in *[!0-9a-z.-]*) echo "::error::Подозрительная версия OpenWrt: $v"; exit 1 ;; esac
+            case "$v" in *[!0-9a-z.-]*) echo "::error::Suspicious version of OpenWrt: $v"; exit 1 ;; esac
             [ "$first" -eq 1 ] || JSON="$JSON,"
             first=0
             JSON="$JSON{\"owrt\":\"$v\"}"
           done
           JSON="$JSON]}"
           echo "matrix=$JSON" >> "$GITHUB_OUTPUT"
-          echo "Матрица: $JSON"
+          echo "Matrix: $JSON"
 
   build:
     needs: setup
@@ -126,7 +125,7 @@ jobs:
         run: |
           set -eu
           VER="${{ matrix.owrt }}"
-          # Пакет состоит из JS/JSON (PKGARCH=all) — target SDK не важен, так что один x86/64 SDK даёт пакеты для всех архитектур
+          # The package consists of JS/JSON (PKGARCH=all) - the target SDK is not important, so one x86/64 SDK provides packages for all architectures
           TARGET="x86/64"
           if [ "$VER" = "snapshot" ]; then
             BASE_URL="https://downloads.openwrt.org/snapshots/targets/${TARGET}"
@@ -135,8 +134,8 @@ jobs:
           fi
           curl -fsSL "${BASE_URL}/sha256sums" -o sha256sums
           SDK_FILE="$(grep -oE 'openwrt-sdk-[^[:space:]]+Linux-x86_64\.tar\.(zst|xz)' sha256sums | head -n1)"
-          [ -n "$SDK_FILE" ] || { echo "::error::SDK не найден в ${BASE_URL} — проверьте версию"; exit 1; }
-          echo "Выбран SDK: ${SDK_FILE}"
+          [ -n "$SDK_FILE" ] || { echo "::error::SDK not found in ${BASE_URL} — check version"; exit 1; }
+          echo "SDK selected: ${SDK_FILE}"
           curl -fL --retry 3 -O "${BASE_URL}/${SDK_FILE}"
           grep -F "${SDK_FILE}" sha256sums | sha256sum -c -
           tar -xf "${SDK_FILE}"
@@ -155,8 +154,6 @@ jobs:
         run: |
           set -eu
           cd "${SDK_DIR}"
-          # -p БЕЗ -a — пустышка: ставит только пакеты, перечисленные аргументами.
-          # Нужны все фиды: base даёт lua/host, luci — luci-base/host (po2lmo, jsmin)
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
@@ -170,14 +167,12 @@ jobs:
           make defconfig
 
           grep -q '^CONFIG_PACKAGE_luci-mod-listening-ports=m' .config || {
-            echo "::error::Пакет выкинут из .config — проверьте feeds и зависимости"; exit 1; }
+            echo "::error::The package is thrown out .config — check feeds and dependencies"; exit 1; }
           grep -Eq '^CONFIG_PACKAGE_luci-i18n-listening-ports-.+=[ym]' .config || \
-            echo "::warning::Ни один i18n-пакет не включился (проверьте po/ и LUCI_LANG)"
+            echo "::warning::Not a single i18n package was enabled (check po/ and LUCI_LANG)"
 
-          # Host-инструменты отдельно: быстрый и понятный фейл, если что-то не так
           make -j"$(nproc)" package/feeds/luci/luci-base/host/compile V=s
 
-          # Основной пакет + все luci-i18n-* подпакеты
           make -j"$(nproc)" package/luci-mod-listening-ports/compile V=s
 
           echo "=== Build artifacts ==="
@@ -227,15 +222,15 @@ jobs:
             cp -v "$file" release/
           done
           ls -lh release/
-          echo "Всего: $(find release -type f | wc -l), ipk: $(find release -name '*.ipk' | wc -l), apk: $(find release -name '*.apk' | wc -l)"
+          echo "Total: $(find release -type f | wc -l), ipk: $(find release -name '*.ipk' | wc -l), apk: $(find release -name '*.apk' | wc -l)"
 
       - name: Create or Update Release
         run: |
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
-            echo "Релиз уже существует. Загружаем собранные пакеты в него..."
+            echo "The release already exists. We load the collected packages into it…"
             gh release upload "$TAG_NAME" release/* --clobber
           else
-            echo "Релиз не найден. Создаем новый и загружаем пакеты..."
+            echo "Release not found. Create a new one and download packages…"
             gh release create "$TAG_NAME" --title "LuCI Listening Ports $TAG_NAME" --generate-notes release/*
           fi
         env:
