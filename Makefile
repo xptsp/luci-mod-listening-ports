@@ -12,7 +12,7 @@ PKG_MAINTAINER:=Douglas Orend <doug.orend2@gmail.com>
 PKG_VERSION:=1.1
 PKG_RELEASE:=5
 
-# Фиксируем версию i18n-пакетов: без этого luci.mk считает её из git/mtime, и в CI она будет меняться каждый прогон
+# fix version of i18n packages: without this, luci.mk reads it from git/mtime, and in CI it will change every run
 PKG_PO_VERSION:=$(PKG_VERSION)-r$(PKG_RELEASE)
 
 include $(TOPDIR)/feeds/luci/luci.mk
