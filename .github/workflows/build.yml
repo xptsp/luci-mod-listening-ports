@@ -155,8 +155,10 @@ jobs:
         run: |
           set -eu
           cd "${SDK_DIR}"
-          ./scripts/feeds update luci
-          ./scripts/feeds install -p luci
+          # -p БЕЗ -a — пустышка: ставит только пакеты, перечисленные аргументами.
+          # Нужны все фиды: base даёт lua/host, luci — luci-base/host (po2lmo, jsmin)
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
 
           {
             echo "CONFIG_PACKAGE_luci-mod-listening-ports=m"
@@ -169,10 +171,13 @@ jobs:
 
           grep -q '^CONFIG_PACKAGE_luci-mod-listening-ports=m' .config || {
             echo "::error::Пакет выкинут из .config — проверьте feeds и зависимости"; exit 1; }
-          grep -Eq '^CONFIG_PACKAGE_luci-i18n-listening-ports-.+=y' .config || \
+          grep -Eq '^CONFIG_PACKAGE_luci-i18n-listening-ports-.+=[ym]' .config || \
             echo "::warning::Ни один i18n-пакет не включился (проверьте po/ и LUCI_LANG)"
 
-          # Один вызов собирает основной пакет и все luci-i18n-* подпакеты
+          # Host-инструменты отдельно: быстрый и понятный фейл, если что-то не так
+          make -j"$(nproc)" package/feeds/luci/luci-base/host/compile V=s
+
+          # Основной пакет + все luci-i18n-* подпакеты
           make -j"$(nproc)" package/luci-mod-listening-ports/compile V=s
 
           echo "=== Build artifacts ==="
